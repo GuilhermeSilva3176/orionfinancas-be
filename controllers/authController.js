@@ -1,8 +1,11 @@
-const jwt = require('jsonwebtoken');
+const emailService = require('../services/emailService');
 const { getDB } = require('../config/database');
+const { ObjectId } = require('mongodb');
+const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 require('dotenv').config();
 
+const RESET_SECRET = process.env.JWT_RESET_SECRET;
 const SECRET_KEY = process.env.SECRET_KEY;
 
 const authController = { 
@@ -168,6 +171,167 @@ const authController = {
          } catch (error) {
             return null;
          }
+    },
+
+    forgotPassword: async function(req, res) {
+        try {
+            const { email } = req.body;
+
+            if (!email) {
+                return res.status(400).json({
+                    message: 'Email é obrigatório',
+                    status: 'ERROR'
+                });
+            }
+
+            if (!authController.validateEmail(email)) {
+                return res.status(400).json({
+                    message: 'Email inválido',
+                    status: 'ERROR'
+                })
+            }
+
+            const db = getDB();
+            const usersCollection = db.collection('users');
+
+            const user = await usersCollection.findOne({
+                email: email.toLowerCase()
+            });
+
+            if (!user) {
+                return res.json({
+                    message: 'Se o email estiver cadastrado, você receberá instruções para redefinir sua senha',
+                    status: 'OK'
+                });
+            }
+
+            const resetToken = jwt.sign(
+                {
+                    userId: user._id.toString(),
+                    email: user.email,
+                    type: 'password_reset'
+                },
+                RESET_SECRET,
+                { expiresIn: '1h' }
+            );
+
+            await usersCollection.updateOne(
+                { _id: user._id },
+                { 
+                    $set: {
+                        resetToken: resetToken,
+                        resetTokenExpires: new Date(Date.now() + 3600000),
+                        updatedAt: new Date()
+                    }
+                }
+            );
+
+            const emailSent = await emailService.sendPasswordResetEmail(email, resetToken);
+
+            if (!emailSent) {
+                await usersCollection.updateOne(
+                    { _id: user._id },
+                    { $unset: { resetToken: "", resetTokenExpires: "" } }
+                );
+
+                return res.status(500).json({
+                    message: 'Erro ao enviar email de recuperação',
+                    status: 'ERROR'
+                });
+            }
+
+            res.json({
+                message: 'Email de recuperação enviado com sucesso. Verifique sua caixa de entrada',
+                status: 'OK'
+            })
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({
+                error: 'Erro interno do servidor',
+                details: process.env.NODE_ENV === 'development' ? error.message : undefined
+            });
+        }
+    },
+
+    resetPassword: async function(req, res) {
+        try {
+            const { token, newPassword } = req.body;
+
+            if (!token || !newPassword) {
+                return res.status(400).json({
+                    message: 'Token e nova senha são obrigatórios',
+                    status: 'ERROR'
+                })
+            }
+
+            if (newPassword.length < 6) {
+                return res.status(400).json({
+                    message: 'Nova senha dever ter no minimo 6 caracteres',
+                    status: 'ERROR'
+                });
+            }
+
+            let decoded;
+            try {
+                decoded = jwt.verify(token, RESET_SECRET);
+            } catch (error) {
+                return res.status(400).json({
+                    message: 'Token inválido ou expirado',
+                    status: 'ERROR'
+                });
+            }
+
+            if (decoded.type !== 'password_reset') {
+                return res.status(400).json({
+                    message: 'Tipo de token inválido',
+                    status: 'ERROR'
+                });
+            }
+
+            const db = getDB();
+            const usersCollection = db.collection('users');
+
+            const user = await usersCollection.findOne({
+                _id: new ObjectId(decoded.userId),
+                email: decoded.email,
+                resetToken: token,
+                resetTokenExpires: { $gt: new Date() }
+            });
+
+            if (!user) {
+                return res.status(400).json({
+                    message: 'Token inválido ou expirado',
+                    status: 'ERROR'
+                });
+            }
+
+            const hashedPassword = await authController.hashPassword(newPassword);
+
+            await usersCollection.updateOne(
+                { _id: user._id },
+                {
+                    $set: {
+                        password: hashedPassword,
+                        updatedAt: new Date()
+                    },
+                    $unset: {
+                        resetToken: "",
+                        resetTokenExpires: ""
+                    }
+                }
+            );
+            
+            res.json({
+                message: 'Senha redefinida com sucesso! Você já pode fazer login.',
+                status: 'OK'
+            });
+
+        } catch (error) {
+            res.status(500).json({
+                error: 'Erro interno do servidor',
+                details: process.env.NODE_ENV === 'development' ? error.message : undefined
+            });
+        }
     }
 };
 

@@ -1,12 +1,33 @@
-const bodyParser = require('body-parser');
-const authController = require('./controllers/authController.js')
+const { default: rateLimit } = require('express-rate-limit');
+const { contentSecurityPolicy } = require('helmet');
 const { connectDB } = require('./config/database');
 const authRoutes = require('./routes/auth.js');
+const bodyParser = require('body-parser');
 const express = require('express');
+const helmet = require('helmet');
 const app = express();
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(helmet({
+        contentSecurityPolicy: {
+            directives: {
+                defaultSrc: ["'self'"],
+                styleSrc: ["'self'", "'unsafe-inline'"],
+                scriptSrc: ["'self'"]
+            }
+        }
+}));
+
+const globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    message: 'Muitas requisições. Tente novamente mais tarde.',
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+app.use(globalLimiter);
+app.use(bodyParser.json({ limit: '10mb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 
 const PORT = process.env.PORT || 3000;
 
