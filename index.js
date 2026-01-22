@@ -1,6 +1,7 @@
 const { default: rateLimit } = require('express-rate-limit');
+const { connectDB } = require('./config/database.js');
+const accountRoutes = require('./routes/account.js');
 const { contentSecurityPolicy } = require('helmet');
-const { connectDB } = require('./config/database');
 const authRoutes = require('./routes/auth.js');
 const bodyParser = require('body-parser');
 const express = require('express');
@@ -32,6 +33,7 @@ app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 const PORT = process.env.PORT || 3000;
 
 app.use('/api/auth', authRoutes);
+app.use('/api/account', accountRoutes);
 
 app.get('/', (req, res) => {
     res.json({

@@ -40,24 +40,62 @@ const authController = {
                 });
             }
 
-            const token = await authController.generateToken(email, password);
+            const db = getDB();
+            const usersCollection = db.collection('users');
 
-            if (token) {
-                res.json({
-                    message: 'Login realizado com sucesso',
-                    status: "OK",
-                    token: token
-                })
-            } else {
-                res.status(401).json({
+            const user = await usersCollection.findOne({email: email.toLowerCase()});
+
+            if (!user) {
+                return res.status(401).json({
                     message: 'Email ou senha inválidos',
-                    status: "ERROR",
+                    status: 'ERROR',
                     token: null
                 });
             }
+
+            const isValidPassword = await authController.comparePasswords(password, user.password);
+
+            if (!isValidPassword) {
+                return res.status(401).json({
+                    message: 'Email ou senha Inválidos',
+                    status: 'ERROR',
+                    token: null
+                });
+            }
+
+            if (user.isActive === false) {
+                await usersCollection.updateOne(
+                    { _id: user._id },
+                    {
+                        $set: {
+                            isActive: true,
+                            deactivatedAt: null,
+                            updatedAt: new Date()
+                        }
+                    }
+                );
+            }
+
+            const payload = {
+                userId: user._id.toString(),
+                email: user.email,
+                name: user.name
+            };
+
+            const token = await authController.generateToken(email, password);
+
+            res.json({
+                message: user.isActive === false ? 
+                'Conta reativada e login realizado com sucesso' :
+                'Login realizado com sucesso',
+                status: "OK",
+                token: token,
+                accountReactivated: user.isActive === false
+            });
+
         } catch (error) {
             console.error('Erro no login:', error);
-            res.status(500).json({ error: 'Erro interno do servidor' });
+            res.status(500).json({ message: 'Erro interno do servidor', status: 'ERROR'});
         }
     },
 
@@ -86,6 +124,14 @@ const authController = {
             });
 
             if (existingUser) {
+                if (existingUser.isActive === false) {
+                    return res.status(400).json({
+                        message: 'Este email já possui uma conta inativa. Faça login para reativar sua conta.',
+                        status: 'ERROR',
+                        canReactivate: true
+                    });
+                }
+
                 return res.status(400).json({
                     message: 'Email já cadastrado',
                     status: 'ERROR'
@@ -109,6 +155,7 @@ const authController = {
                 email: email.toLowerCase(),
                 password: await authController.hashPassword(password),
                 birthdate: birthdateDate,
+                isActive: true,
                 profile: { level: 1, points: 0, avatarUrl: ""},
                 wallet: { coins: 0, xp: 0},
                 inventory: [],

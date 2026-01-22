@@ -5,7 +5,7 @@ const cors = require('cors');
 
 const router = express.Router();
 
-app.use(cors({
+router.use(cors({
     origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
