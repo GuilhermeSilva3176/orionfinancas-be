@@ -1,5 +1,6 @@
 const { default: rateLimit } = require('express-rate-limit');
 const { connectDB } = require('./config/database.js');
+const goalsRoutes = require('./routes/goals.js');
 const accountRoutes = require('./routes/account.js');
 const { contentSecurityPolicy } = require('helmet');
 const authRoutes = require('./routes/auth.js');
@@ -34,6 +35,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use('/api/auth', authRoutes);
 app.use('/api/account', accountRoutes);
+app.use('/api/goals', goalsRoutes);
 
 app.get('/', (req, res) => {
     res.json({

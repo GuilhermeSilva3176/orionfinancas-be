@@ -19,7 +19,7 @@ const accountController = {
                 });
             }
 
-            res.json({
+            return res.json({
                 message: 'Perfil obtido com sucesso',
                 status: 'OK',
                 data: user
@@ -27,7 +27,7 @@ const accountController = {
 
         } catch (error) {
             console.error('Erro ao obter perfil:', error);
-            res.status(500).json({
+            return res.status(500).json({
                 message: 'Erro interno do servidor',
                 status: 'ERROR'
             });
@@ -55,14 +55,14 @@ const accountController = {
                 { $set: { isActive: false, deactivatedAt: new Date() } }
             );
 
-            res.json({
+            return res.json({
                 message: "Conta deletada com sucesso",
                 status: 'OK'
             });
 
         } catch (error) {
             console.error(error)
-            res.status(500).json({
+            return res.status(500).json({
                 message: 'Erro interno do servidor',
                 status: 'ERROR'
             });
@@ -127,7 +127,7 @@ const accountController = {
                 { projection: { password: 0 } }
             );
 
-            res.json({
+            return res.json({
                 message: 'Conta atualizada com sucesso',
                 status: 'OK',
                 data: updatedUser
@@ -135,7 +135,7 @@ const accountController = {
             
         } catch (error) {
             console.error(error)
-            res.status(500).json({
+            return res.status(500).json({
                 message: 'Erro interno do servidor',
                 status: 'ERROR'
             });

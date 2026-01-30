@@ -164,7 +164,7 @@ const authController = {
                 updatedAt: new Date()
             }
 
-            const registerUser = await usersCollection.insertOne(payload)
+            const registerUser = await usersCollection.insertOne(payload);
 
             res.status(201).json({
                 message: 'Usuário registrado com sucesso',
