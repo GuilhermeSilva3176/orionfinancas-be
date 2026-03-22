@@ -1,5 +1,6 @@
 const { getDB } = require("../config/database.js");
 const { ObjectId } = require("mongodb");
+const missionService = require("../services/missionService.js");
 
 const COLLECTIONNAME = "user_financial_goals"
 
@@ -46,7 +47,7 @@ const goalsController = {
             const db = getDB();
             const userId = req.user.id;
             const goalsCollection = db.collection('user_financial_goals');
-            let { goalName, targetAmount, currentAmount, targetDate, urgencyColor } = req.body;
+            let { goalName, targetAmount, currentAmount, targetDate, urgencyColor, description } = req.body;
 
             if (!userId || !goalName || !targetAmount) {
                 return res.status(400).json({
@@ -66,11 +67,15 @@ const goalsController = {
                 currentAmount: currentAmount,
                 targetDate: targetDate,
                 urgencyColor: urgencyColor,
+                description: description || '',
                 createdAt: new Date(),
                 updatedAt: new Date()
             };
 
             const response = await goalsCollection.insertOne(payload);
+
+            // Trigger mission progress for creating a goal
+            await missionService.updateProgress(userId, 'GOAL_CREATED');
 
             return res.status(201).json({
                 message: 'Meta criada com sucesso',

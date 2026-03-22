@@ -17,7 +17,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js"
+    "start": "node index.js",
+    "seed-missions": "node scripts/seedMissions.js",
+    "update-missions": "node scripts/updateMissionsFields.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
