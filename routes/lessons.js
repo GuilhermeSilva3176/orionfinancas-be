@@ -9,4 +9,10 @@ router.post('/complete', authMiddleware.verifyToken, lessonsController.completeL
 // User: Get lesson progress
 router.get('/progress', authMiddleware.verifyToken, lessonsController.getLessonProgress);
 
+// User: Submit module review
+router.post('/review', authMiddleware.verifyToken, lessonsController.submitReview);
+
+// Admin: Get all reviews
+router.get('/reviews', authMiddleware.verifyToken, lessonsController.getAllReviews);
+
 module.exports = router;

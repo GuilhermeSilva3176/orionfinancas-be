@@ -160,7 +160,7 @@ const authController = {
                 password: await authController.hashPassword(password),
                 birthdate: birthdateDate,
                 isActive: true,
-                profile: { level: 1, points: 0, avatarUrl: "", lives: 5, streak: 0},
+                profile: { level: 1, points: 0, avatarUrl: "", lives: 5, streak: 0, lastActivity: null },
                 wallet: { coins: 0, xp: 0, balance: 0},
                 inventory: [],
                 equippedAvatar: "",

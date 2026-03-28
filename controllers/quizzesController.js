@@ -2,6 +2,7 @@ const { getDB } = require("../config/database.js");
 const { ObjectId } = require("mongodb");
 const missionService = require("../services/missionService.js");
 const rewardService = require("../services/rewardService.js");
+const streakService = require("../services/streakService.js");
 
 const quizzesController = {
     // Admin/User: List all quizzes
@@ -65,7 +66,14 @@ const quizzesController = {
             const totalQuestions = quiz.questions.length;
             const passed = score >= (totalQuestions * 0.7); // 70% to pass
 
-            // Save attempt to user_quiz_attempts
+            // Check if already passed in the past
+            const previousPass = await db.collection("user_quiz_attempts").findOne({
+                 userId: new ObjectId(userId),
+                 quizId: new ObjectId(quizId),
+                 passed: true
+            });
+            const isAlreadyPassed = !!previousPass;
+
             await db.collection("user_quiz_attempts").insertOne({
                 userId: new ObjectId(userId),
                 quizId: new ObjectId(quizId),
@@ -79,8 +87,6 @@ const quizzesController = {
             });
 
             // Trigger mission progress if it's a perfect quiz (100%)
-            // Assuming score is passed as a number out of total questions, or 100
-            // Let's assume score is 100 if perfect.
             if (score === totalQuestions || score === 100) {
                 await missionService.updateProgress(userId, "PERFECT_QUIZ");
             }
@@ -88,17 +94,30 @@ const quizzesController = {
             // Trigger generic quiz completion
             await missionService.updateProgress(userId, "COMPLETE_QUIZ");
 
-            // Award base rewards (+30 XP, +10 Coins) if passed
+            // Award base rewards (+30 XP, +10 Coins) or reduced if already passed (+5 XP, +5 Coins)
             let rewards = null;
+            let streakUpdated = false;
             if (passed) {
-                rewards = await rewardService.grantRewards(userId, { xp: 30, coins: 10 });
+                let rewardAmount = isAlreadyPassed ? { xp: 5, coins: 5 } : { xp: 30, coins: 10 };
+                
+                // Double rewards for PRO users
+                const subscription = await db.collection('subscriptions').findOne({ userId: new ObjectId(userId), status: 'ACTIVE' });
+                if (subscription) {
+                    rewardAmount = { xp: rewardAmount.xp * 2, coins: rewardAmount.coins * 2 };
+                }
+
+                rewards = await rewardService.grantRewards(userId, rewardAmount);
+                // Update streak
+                const streakData = await streakService.updateStreak(userId);
+                streakUpdated = streakData?.updated || false;
             }
 
             return res.json({
                 message: "Quiz completado com sucesso",
                 status: "OK",
                 passed,
-                rewards
+                rewards,
+                streakUpdated
             });
         } catch (error) {
             console.error("Erro ao completar quiz:", error);
