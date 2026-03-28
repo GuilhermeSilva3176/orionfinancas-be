@@ -1,7 +1,7 @@
 const { MongoClient, ObjectId } = require('mongodb');
 require('dotenv').config();
 
-const uri = process.env.MONGODB_URI || "mongodb+srv://admin:admin@cluster0.rtmpo.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"; // Falha segura caso o .env não carregue perfeitamente
+const uri = process.env.MONGODB_URI; // Falha segura caso o .env não carregue perfeitamente
 const dbName = 'orion_financas_db';
 
 async function run() {
