@@ -1,5 +1,6 @@
 const { getDB } = require("../config/database.js");
 const { ObjectId } = require("mongodb");
+const missionService = require("../services/missionService.js");
 
 const COLLECTIONNAME = "user_financial_goals"
 
@@ -46,13 +47,30 @@ const goalsController = {
             const db = getDB();
             const userId = req.user.id;
             const goalsCollection = db.collection('user_financial_goals');
-            let { goalName, targetAmount, currentAmount, targetDate, urgencyColor } = req.body;
+            let { goalName, targetAmount, currentAmount, targetDate, urgencyColor, description } = req.body;
 
             if (!userId || !goalName || !targetAmount) {
                 return res.status(400).json({
                     message: 'Dados obrigatórios não foram preenchidos',
                     status: 'ERROR'
                 });
+            }
+
+            const initialDeposit = parseFloat(currentAmount) || 0;
+
+            // Validação de saldo
+            if (initialDeposit > 0) {
+                const txs = await db.collection('transactions').find({ userId: new ObjectId(userId) }).toArray();
+                const income = txs.filter(t => t.type === 'ganho').reduce((sum, t) => sum + t.amount, 0);
+                const expenses = txs.filter(t => t.type === 'gasto').reduce((sum, t) => sum + t.amount, 0);
+                const balance = income - expenses;
+
+                if (balance < initialDeposit) {
+                    return res.status(400).json({
+                        message: 'Saldo insuficiente na conta para reservar este valor inicial.',
+                        status: 'ERROR'
+                    });
+                }
             }
 
             if (!urgencyColor) {
@@ -62,15 +80,32 @@ const goalsController = {
             const payload = {
                 userId: new ObjectId(userId),
                 goalName: goalName,
-                targetAmount: targetAmount,
-                currentAmount: currentAmount,
+                targetAmount: parseFloat(targetAmount),
+                currentAmount: initialDeposit,
                 targetDate: targetDate,
                 urgencyColor: urgencyColor,
+                description: description || '',
                 createdAt: new Date(),
                 updatedAt: new Date()
             };
 
             const response = await goalsCollection.insertOne(payload);
+
+            // Debita no extrato financeiro
+            if (initialDeposit > 0) {
+                await db.collection('transactions').insertOne({
+                    userId: new ObjectId(userId),
+                    type: 'gasto',
+                    title: `Meta: ${goalName}`,
+                    amount: initialDeposit,
+                    category: 'Investimento / Meta',
+                    date: new Date().toLocaleDateString('pt-BR'),
+                    createdAt: new Date()
+                });
+            }
+
+            // Trigger mission progress for creating a goal
+            await missionService.updateProgress(userId, 'GOAL_CREATED');
 
             return res.status(201).json({
                 message: 'Meta criada com sucesso',
@@ -116,6 +151,51 @@ const goalsController = {
                     status: 'ERROR'
                 });
             }
+
+            // --- Lógica de Depósito / Resgate da Meta com integração no Saldo ---
+            if (updates.currentAmount !== undefined) {
+                const newCurrent = parseFloat(updates.currentAmount);
+                const oldCurrent = updateDocumentData.currentAmount || 0;
+                const diff = newCurrent - oldCurrent;
+
+                if (diff > 0) { // Tentando colocar mais dinheiro
+                    const txs = await db.collection('transactions').find({ userId: new ObjectId(userId) }).toArray();
+                    const income = txs.filter(t => t.type === 'ganho').reduce((sum, t) => sum + t.amount, 0);
+                    const expenses = txs.filter(t => t.type === 'gasto').reduce((sum, t) => sum + t.amount, 0);
+                    const balance = income - expenses;
+
+                    if (balance < diff) {
+                        return res.status(400).json({
+                            message: `Saldo insuficiente. Faltam R$ ${(diff - balance).toFixed(2)} para esta reserva.`,
+                            status: 'ERROR'
+                        });
+                    }
+
+                    // Dinheiro saiu da conta principal pra ir pra meta
+                    await db.collection('transactions').insertOne({
+                        userId: new ObjectId(userId),
+                        type: 'gasto',
+                        title: `Reserva para Meta: ${updates.goalName || updateDocumentData.goalName}`,
+                        amount: diff,
+                        category: 'Investimento / Meta',
+                        date: new Date().toLocaleDateString('pt-BR'),
+                        createdAt: new Date()
+                    });
+                } else if (diff < 0) { // O usuário tirou dinheiro da meta de volta pra conta
+                    await db.collection('transactions').insertOne({
+                        userId: new ObjectId(userId),
+                        type: 'ganho',
+                        title: `Resgate da Meta: ${updates.goalName || updateDocumentData.goalName}`,
+                        amount: Math.abs(diff),
+                        category: 'Resgate de Meta',
+                        date: new Date().toLocaleDateString('pt-BR'),
+                        createdAt: new Date()
+                    });
+                }
+                
+                updates.currentAmount = newCurrent;
+            }
+            if (updates.targetAmount !== undefined) updates.targetAmount = parseFloat(updates.targetAmount);
     
             const forbiddenFields = ['_id', 'userId', 'createdAt'];
     

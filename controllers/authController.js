@@ -3,6 +3,7 @@ const { getDB } = require('../config/database');
 const { ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const missionService = require('../services/missionService');
 require('dotenv').config();
 
 const RESET_SECRET = process.env.JWT_RESET_SECRET;
@@ -84,6 +85,9 @@ const authController = {
 
             const token = await authController.generateToken(email, password);
 
+            // Trigger mission progress for daily login
+            await missionService.updateProgress(user._id.toString(), 'DAILY_LOGIN');
+
             res.json({
                 message: user.isActive === false ? 
                 'Conta reativada e login realizado com sucesso' :
@@ -156,8 +160,8 @@ const authController = {
                 password: await authController.hashPassword(password),
                 birthdate: birthdateDate,
                 isActive: true,
-                profile: { level: 1, points: 0, avatarUrl: ""},
-                wallet: { coins: 0, xp: 0},
+                profile: { level: 1, points: 0, avatarUrl: "", lives: 5, streak: 0, lastActivity: null },
+                wallet: { coins: 0, xp: 0, balance: 0},
                 inventory: [],
                 equippedAvatar: "",
                 createdAt: new Date(),
