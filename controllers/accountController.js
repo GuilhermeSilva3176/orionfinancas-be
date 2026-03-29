@@ -338,6 +338,7 @@ const accountController = {
             trails.forEach(t => { 
                 if (t.modulos) { 
                     t.modulos.forEach(m => {
+                        if (m?.isActive === false) return;
                         allModulesList.push({ trail: t, module: m });
                     });
                 } 

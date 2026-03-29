@@ -4,6 +4,53 @@ const missionService = require("../services/missionService.js");
 const rewardService = require("../services/rewardService.js");
 const streakService = require("../services/streakService.js");
 
+const parseRequiredObjectId = (value, fieldName) => {
+    if (!value) {
+        throw new Error(`${fieldName} é obrigatório`);
+    }
+
+    if (!ObjectId.isValid(value)) {
+        throw new Error(`${fieldName} inválido`);
+    }
+
+    return new ObjectId(value);
+};
+
+const parseOptionalObjectId = (value, fieldName) => {
+    if (!value) return null;
+
+    if (!ObjectId.isValid(value)) {
+        throw new Error(`${fieldName} inválido`);
+    }
+
+    return new ObjectId(value);
+};
+
+const getLessonContext = async (db, lessonObjectId) => {
+    const trail = await db.collection("content_trails").findOne(
+        { "modulos.licoes._id": lessonObjectId },
+        { projection: { modulos: 1 } }
+    );
+
+    if (!trail) return null;
+
+    const modulos = Array.isArray(trail.modulos) ? trail.modulos : [];
+    for (const modulo of modulos) {
+        const licoes = Array.isArray(modulo?.licoes) ? modulo.licoes : [];
+        const hasLesson = licoes.some((licao) => licao?._id?.toString() === lessonObjectId.toString());
+
+        if (hasLesson) {
+            return {
+                trailId: trail._id || null,
+                moduleId: modulo?._id || null,
+                moduleIsActive: modulo?.isActive !== false
+            };
+        }
+    }
+
+    return null;
+};
+
 const lessonsController = {
     // User: Mark lesson as complete
     completeLesson: async (req, res) => {
@@ -12,9 +59,52 @@ const lessonsController = {
             const userId = req.user.id;
             const { lessonId, moduleId, trailId } = req.body;
 
-            if (!lessonId) {
+            let lessonObjectId = null;
+            let moduleObjectId = null;
+            let trailObjectId = null;
+            try {
+                lessonObjectId = parseRequiredObjectId(lessonId, "lessonId");
+                moduleObjectId = parseOptionalObjectId(moduleId, "moduleId");
+                trailObjectId = parseOptionalObjectId(trailId, "trailId");
+            } catch (validationError) {
                 return res.status(400).json({
-                    message: "ID da aula é obrigatório",
+                    message: validationError.message,
+                    status: "ERROR"
+                });
+            }
+
+            const lessonContext = await getLessonContext(db, lessonObjectId);
+            if (!lessonContext) {
+                return res.status(404).json({
+                    message: "Aula não encontrada",
+                    status: "ERROR"
+                });
+            }
+
+            if (!lessonContext.trailId || !lessonContext.moduleId) {
+                return res.status(500).json({
+                    message: "Dados da trilha estão inconsistentes para esta aula",
+                    status: "ERROR"
+                });
+            }
+
+            if (!lessonContext.moduleIsActive) {
+                return res.status(403).json({
+                    message: "Esta aula está desativada no momento",
+                    status: "ERROR"
+                });
+            }
+
+            if (moduleObjectId && moduleObjectId.toString() !== lessonContext.moduleId.toString()) {
+                return res.status(400).json({
+                    message: "moduleId não corresponde à aula informada",
+                    status: "ERROR"
+                });
+            }
+
+            if (trailObjectId && trailObjectId.toString() !== lessonContext.trailId.toString()) {
+                return res.status(400).json({
+                    message: "trailId não corresponde à aula informada",
                     status: "ERROR"
                 });
             }
@@ -25,7 +115,7 @@ const lessonsController = {
             // Check if already completed
             const existingProgress = await progressCollection.findOne({
                 userId: new ObjectId(userId), 
-                lessonId: new ObjectId(lessonId),
+                lessonId: lessonObjectId,
                 status: "COMPLETED"
             });
             const isAlreadyCompleted = !!existingProgress;
@@ -33,12 +123,12 @@ const lessonsController = {
             await progressCollection.updateOne(
                 { 
                     userId: new ObjectId(userId), 
-                    lessonId: new ObjectId(lessonId) 
+                    lessonId: lessonObjectId 
                 },
                 { 
                     $set: { 
-                        moduleId: moduleId ? new ObjectId(moduleId) : null,
-                        trailId: trailId ? new ObjectId(trailId) : null,
+                        moduleId: lessonContext.moduleId,
+                        trailId: lessonContext.trailId,
                         completedAt: new Date(),
                         status: "COMPLETED"
                     } 

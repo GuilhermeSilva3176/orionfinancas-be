@@ -6,6 +6,8 @@ const missionsRoutes = require('./routes/missions.js');
 const quizzesRoutes = require('./routes/quizzes.js');
 const lessonsRoutes = require('./routes/lessons.js');
 const trailsRoutes = require('./routes/trails.js');
+const usersRoutes = require('./routes/users.js');
+const subscriptionsRoutes = require('./routes/subscriptions.js');
 const shopRoutes = require('./routes/shop.js');
 const financesRoutes = require('./routes/finances.js');
 const { contentSecurityPolicy } = require('helmet');
@@ -54,6 +56,8 @@ app.use('/api/missions', missionsRoutes);
 app.use('/api/quizzes', quizzesRoutes);
 app.use('/api/lessons', lessonsRoutes);
 app.use('/api/trails', trailsRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/subscriptions', subscriptionsRoutes);
 app.use('/api/shop', shopRoutes);
 app.use('/api/finances', financesRoutes);
 
