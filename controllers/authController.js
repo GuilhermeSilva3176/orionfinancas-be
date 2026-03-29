@@ -77,12 +77,6 @@ const authController = {
                 );
             }
 
-            const payload = {
-                userId: user._id.toString(),
-                email: user.email,
-                name: user.name
-            };
-
             const token = await authController.generateToken(email, password);
 
             // Trigger mission progress for daily login
@@ -99,6 +93,62 @@ const authController = {
 
         } catch (error) {
             console.error('Erro no login:', error);
+            res.status(500).json({ message: 'Erro interno do servidor', status: 'ERROR'});
+        }
+    },
+
+    adminLogin: async function(req, res) {
+        try {
+            const { email, password } = req.body;
+
+            if (!email || !password) {
+                return res.status(400).json({
+                    message: 'Email e senha são obrigatórios',
+                    status: 'ERROR'
+                });
+            }
+
+            const db = getDB();
+            const adminsCollection = db.collection('admins');
+
+            const user = await adminsCollection.findOne({email: email.toLowerCase()});
+
+            if (!user) {
+                return res.status(401).json({
+                    message: 'Email ou senha inválidos',
+                    status: 'ERROR',
+                    token: null
+                });
+            }
+
+            const isValidPassword = await authController.comparePasswords(password, user.password);
+
+            if (!isValidPassword) {
+                return res.status(401).json({
+                    message: 'Email ou senha Inválidos',
+                    status: 'ERROR',
+                    token: null
+                });
+            }
+
+            // Generate token specifically for admin
+            const payload = {
+                userId: user._id.toString(),
+                email: user.email,
+                name: user.name,
+                role: 'Admin'
+            };
+
+            const token = jwt.sign(payload, SECRET_KEY, { expiresIn: '12h' });
+
+            res.json({
+                message: 'Login de administrador realizado com sucesso',
+                status: "OK",
+                token: token
+            });
+
+        } catch (error) {
+            console.error('Erro no login admin:', error);
             res.status(500).json({ message: 'Erro interno do servidor', status: 'ERROR'});
         }
     },
@@ -201,10 +251,23 @@ const authController = {
                 return null;
             }
 
+            const userRole = user?.role
+                || user?.userType
+                || user?.profile?.role
+                || user?.profile?.type
+                || user?.profile?.perfil
+                || user?.profile?.userType
+                || "";
+
+            const normalizedRole = String(userRole).trim().toLowerCase();
+            const role = ["admin", "administrador"].includes(normalizedRole) ? "Admin" : 
+                        (["mentor", "mentora"].includes(normalizedRole) ? "Mentor" : "Aluno");
+
             const payload = {
                 userId: user._id.toString(),
                 email: user.email,
-                name: user.name
+                name: user.name,
+                role: role
             }
     
             const token = jwt.sign(payload, SECRET_KEY, { expiresIn: '12h' });

@@ -4,6 +4,6 @@ const usersController = require("../controllers/usersController.js");
 
 const router = express.Router();
 
-router.get("/admin", authMiddleware.verifyToken, usersController.getAdminUsers);
+router.get("/admin", authMiddleware.verifyAdminToken, usersController.getAdminUsers);
 
 module.exports = router;
