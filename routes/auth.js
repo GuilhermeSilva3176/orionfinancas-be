@@ -29,6 +29,7 @@ router.use('/reset-password', authLimiter);
 
 // Rotas autenticação
 router.post('/login', authController.login);
+router.post('/admin/login', authController.adminLogin);
 router.post('/register', authController.register);
 
 // Rotas recovery

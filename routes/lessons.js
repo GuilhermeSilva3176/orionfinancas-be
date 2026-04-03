@@ -13,6 +13,6 @@ router.get('/progress', authMiddleware.verifyToken, lessonsController.getLessonP
 router.post('/review', authMiddleware.verifyToken, lessonsController.submitReview);
 
 // Admin: Get all reviews
-router.get('/reviews', authMiddleware.verifyToken, lessonsController.getAllReviews);
+router.get('/reviews', authMiddleware.verifyAdminToken, lessonsController.getAllReviews);
 
 module.exports = router;
