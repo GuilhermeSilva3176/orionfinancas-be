@@ -83,12 +83,18 @@ const authController = {
             // Trigger mission progress for daily login
             await missionService.updateProgress(user._id.toString(), 'DAILY_LOGIN');
 
+            res.cookie('token', token, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                maxAge: 12 * 60 * 60 * 1000 // 12h
+            });
+
             res.json({
                 message: user.isActive === false ? 
                 'Conta reativada e login realizado com sucesso' :
                 'Login realizado com sucesso',
                 status: "OK",
-                token: token,
                 accountReactivated: user.isActive === false
             });
 
@@ -142,10 +148,16 @@ const authController = {
 
             const token = jwt.sign(payload, SECRET_KEY, { expiresIn: '12h' });
 
+            res.cookie('token', token, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                maxAge: 12 * 60 * 60 * 1000 // 12h
+            });
+
             res.json({
                 message: 'Login de administrador realizado com sucesso',
-                status: "OK",
-                token: token
+                status: "OK"
             });
 
         } catch (error) {
@@ -172,6 +184,13 @@ const authController = {
                     message: 'Email inválido',
                     status: 'ERROR'
                 })
+            }
+
+            if (password.length < 6) {
+                return res.status(400).json({
+                    message: 'A senha deve ter no mínimo 6 caracteres',
+                    status: 'ERROR'
+                });
             }
 
             const existingUser = await usersCollection.findOne({
@@ -464,6 +483,20 @@ const authController = {
                 details: process.env.NODE_ENV === 'development' ? error.message : undefined
             });
         }
+    },
+
+    logout: async function(req, res) {
+        res.clearCookie('token', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+        });
+        res.json({ message: 'Logout realizado com sucesso', status: 'OK' });
+    },
+
+    adminMe: async function(req, res) {
+        // middleware verifies the token and role
+        res.json({ message: 'Admin authenticated', status: 'OK', user: req.user });
     }
 };
 
