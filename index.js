@@ -20,6 +20,8 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const app = express();
 
+app.set('trust proxy', 1); // Confia no proxy do Render (necessário para o Rate Limit funcionar por usuário e não bloquear todos)
+
 app.use(cookieParser());
 app.use(cors({
     origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000'],
